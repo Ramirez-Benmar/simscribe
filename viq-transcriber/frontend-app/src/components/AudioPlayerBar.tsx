@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 
 interface AudioPlayerBarProps {
   fileUrl?: string;
@@ -6,6 +6,16 @@ interface AudioPlayerBarProps {
   onTimeUpdate: (time: number) => void;
   playing: boolean;
   setPlaying: (playing: boolean) => void;
+}
+
+function formatTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 export default function AudioPlayerBar({
@@ -16,16 +26,29 @@ export default function AudioPlayerBar({
   setPlaying,
 }: AudioPlayerBarProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handler = () => {
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
       onTimeUpdate(audio.currentTime);
     };
-    audio.addEventListener("timeupdate", handler);
-    return () => audio.removeEventListener("timeupdate", handler);
+
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+    };
+
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+
+    return () => {
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+    };
   }, [onTimeUpdate]);
 
   useEffect(() => {
@@ -43,7 +66,11 @@ export default function AudioPlayerBar({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) onFileSelected(file);
+    if (file) {
+      onFileSelected(file);
+      setCurrentTime(0);
+      setDuration(0);
+    }
   };
 
   return (
@@ -53,7 +80,7 @@ export default function AudioPlayerBar({
           Upload audio
           <input
             type="file"
-            accept="audio/*"
+            accept="audio/*,video/*"
             className="hidden"
             onChange={handleFileChange}
           />
@@ -64,20 +91,22 @@ export default function AudioPlayerBar({
 
       <div className="flex items-center gap-2 flex-1">
         <button
-          className="text-xs px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700"
+          className="text-xs px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
           onClick={() => handleSkip(-10)}
+          disabled={!fileUrl}
         >
           -10s
         </button>
         <button
-          className="text-xs px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700"
+          className="text-xs px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
           onClick={() => handleSkip(-5)}
+          disabled={!fileUrl}
         >
           -5s
         </button>
 
         <button
-          className="text-xs px-3 py-1 rounded-full bg-indigo-500 hover:bg-indigo-400 font-medium"
+          className="text-xs px-3 py-1 rounded-full bg-indigo-500 hover:bg-indigo-400 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={() => setPlaying(!playing)}
           disabled={!fileUrl}
         >
@@ -85,17 +114,25 @@ export default function AudioPlayerBar({
         </button>
 
         <button
-          className="text-xs px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700"
+          className="text-xs px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
           onClick={() => handleSkip(5)}
+          disabled={!fileUrl}
         >
           +5s
         </button>
         <button
-          className="text-xs px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700"
+          className="text-xs px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
           onClick={() => handleSkip(10)}
+          disabled={!fileUrl}
         >
           +10s
         </button>
+
+        {fileUrl && (
+          <div className="text-xs text-slate-400 ml-2 font-mono">
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </div>
+        )}
       </div>
     </div>
   );
